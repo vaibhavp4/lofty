@@ -18,24 +18,23 @@ from pydantic import BaseModel, Field
 import streamlit as st
 import time
 
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import Chroma
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.llms import OpenAI
+from langchain.chains import RetrievalQA
 
 def make_vectors(uploaded_file):
     filename = uploaded_file.name
     if not os.path.isfile(filename + ".pkl"): 
         corpus = pdfminer.high_level.extract_text(io.BytesIO(uploaded_file.read())) if uploaded_file.name.split(".")[-1].lower() == "pdf" else "\n".join([para.text.strip() for para in Document(io.BytesIO(uploaded_file.read())).paragraphs]) if uploaded_file.name.split(".")[-1].lower() in ["docx", "doc"] else uploaded_file.read().decode('utf-8') if uploaded_file.name.split(".")[-1].lower() == "txt" else ""
-        splitter =  RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200,)
+        splitter =  RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
         chunks = splitter.split_text(corpus)
     
         embeddings = OpenAIEmbeddings()
-        vectors = FAISS.from_texts(chunks, embeddings)
-
-        with open(filename + ".pkl", "wb") as f:
-            pickle.dump(vectors, f)
-            print("embeddings successfully stored")  
-    
-    with open(filename + ".pkl", "rb") as f:
-        vectors = pickle.load(f)
-    return vectors          
+        docsearch = Chroma.from_documents(chunks, embeddings)
+        time.sleep(5)
+        return docsearch          
 
 class TaskCreationChain(LLMChain):
     @classmethod
@@ -139,8 +138,8 @@ class ExecutionChain(LLMChain):
     
     def execute_task(self, vectors, objective: str, task: str, k: int = 5) -> str:
         """Execute a task."""
-        chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
-        new_information = chain.run(input_documents = self.vectors, question = task['task_name'])["output_text"]
+        qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
+        new_information = qa.run(task['task_name'])
         context = self._get_top_tasks(query=objective, k=k)
         return self.run(vectors=self.vectors, objective=objective, context=context, task=task, new_information=new_information)
 
@@ -298,9 +297,8 @@ def main():
         #try:
         vectors = make_vectors(user_file)
         #add a delay of 10 seconds
-        time.sleep(10)    
-        chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
-        objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")
+        qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
+        objective = qa.run("Summarise the file in one sentence")
         print("objective")
         first_task = "Summarise key insights from the file"
         embedding_model = OpenAIEmbeddings()
