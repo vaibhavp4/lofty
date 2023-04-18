@@ -47,8 +47,8 @@ class TaskCreationChain(LLMChain):
             " The last question had the following answer: {result}."
             " This result was based on this question: {task_description}."
             " These are pending questions that are to be processed: {incomplete_tasks}."
-            " Based on the result, ask two new question to be investigated"
-            " that does not overlap with pending questions and neither is a subset of previous questions."
+            " Based on the result, ask two new research questions to be investigated"
+            " that do not overlap with pending questions and neither are a subset of previous questions."
             " Return the questions as an array."
         )
         prompt = PromptTemplate(
