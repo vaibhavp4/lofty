@@ -296,7 +296,6 @@ def main():
     if button:
         #try:
         vectors = make_vectors(user_file)
-        #add a delay of 10 seconds
         qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
         objective = qa.run("Summarise the file in one sentence")
         print("objective")
@@ -306,11 +305,11 @@ def main():
         "print vector store built"
 
         baby_agi = BabyAGI.from_llm_and_objectives(
-            vectors=vectors,
             llm=OpenAI(openai_api_key=openai_api_key),
             vectorstore=vectorstore,
             objective=objective,
             first_task=first_task,
+            vectors=vectors,
             verbose=False
         )
         baby_agi.run(max_iterations=max_iterations)
