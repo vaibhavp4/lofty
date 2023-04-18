@@ -216,8 +216,7 @@ class BabyAGI(BaseModel):
 
                 # Step 2: Execute the task
                 result = self.execution_chain.execute_task(
-                    self.objective, 
-                    task["task_name"]
+                    self.vectors, self.objective, task["task_name"]
                 )
                 this_task_id = int(task["task_id"])
                 self.print_task_result(result)
