@@ -293,8 +293,6 @@ def main():
     max_iterations = st.number_input("Max iterations", value=4, min_value=1, step=1)
     button = st.button("Run")
 
-    embedding_model = OpenAIEmbeddings()
-    vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
 
     if button:
         try:
@@ -304,6 +302,9 @@ def main():
             chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
             objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")["output_text"]
             first_task = "Summarise key insights from the file"
+            embedding_model = OpenAIEmbeddings()
+            vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
+
             baby_agi = BabyAGI.from_llm_and_objectives(
                 vectors=vectors,
                 llm=OpenAI(openai_api_key=openai_api_key),
