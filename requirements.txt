@@ -2,6 +2,5 @@ openai
 python-docx
 langchain
 pdfminer
-pickle
 pydantic
 streamlit

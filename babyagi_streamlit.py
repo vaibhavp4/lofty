@@ -19,10 +19,10 @@ import streamlit as st
 import time
 
 
-def make_vectors(uploaded_files):
-    filename = uploaded_files[0].name
+def make_vectors(uploaded_file):
+    filename = uploaded_file.name
     if not os.path.isfile(filename + ".pkl"): 
-        corpus = "\n".join([pdfminer.high_level.extract_text(io.BytesIO(uploaded_file.read())) if uploaded_file.name.split(".")[-1].lower() == "pdf" else "\n".join([para.text.strip() for para in Document(io.BytesIO(uploaded_file.read())).paragraphs]) if uploaded_file.name.split(".")[-1].lower() in ["docx", "doc"] else uploaded_file.read().decode('utf-8') if uploaded_file.name.split(".")[-1].lower() == "txt" else "" for uploaded_file in files if uploaded_file])
+        corpus = pdfminer.high_level.extract_text(io.BytesIO(uploaded_file.read())) if uploaded_file.name.split(".")[-1].lower() == "pdf" else "\n".join([para.text.strip() for para in Document(io.BytesIO(uploaded_file.read())).paragraphs]) if uploaded_file.name.split(".")[-1].lower() in ["docx", "doc"] else uploaded_file.read().decode('utf-8') if uploaded_file.name.split(".")[-1].lower() == "txt" else ""
         splitter =  RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200,)
         chunks = splitter.split_text(corpus)
     
@@ -290,13 +290,6 @@ def main():
 
     st.title("BabyAGI x FileQnA")
     user_file = st.file_uploader("Upload a file", type=["txt", "pdf","docx"])
-    vectors = make_vectors(user_file)
-    #add a delay of 10 seconds
-    time.sleep(10)    
-
-    chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
-    objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")["output_text"]
-    first_task = "Summarise key insights from the file"
     max_iterations = st.number_input("Max iterations", value=4, min_value=1, step=1)
     button = st.button("Run")
 
@@ -305,6 +298,12 @@ def main():
 
     if button:
         try:
+            vectors = make_vectors(user_file)
+            #add a delay of 10 seconds
+            time.sleep(10)    
+            chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
+            objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")["output_text"]
+            first_task = "Summarise key insights from the file"
             baby_agi = BabyAGI.from_llm_and_objectives(
                 vectors=vectors,
                 llm=OpenAI(openai_api_key=openai_api_key),
