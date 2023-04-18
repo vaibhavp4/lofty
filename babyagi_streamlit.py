@@ -28,8 +28,8 @@ def make_vectors(uploaded_file):
     filename = uploaded_file.name
     if not os.path.isfile(filename + ".pkl"): 
         corpus = pdfminer.high_level.extract_text(io.BytesIO(uploaded_file.read())) if uploaded_file.name.split(".")[-1].lower() == "pdf" else "\n".join([para.text.strip() for para in Document(io.BytesIO(uploaded_file.read())).paragraphs]) if uploaded_file.name.split(".")[-1].lower() in ["docx", "doc"] else uploaded_file.read().decode('utf-8') if uploaded_file.name.split(".")[-1].lower() == "txt" else ""
-        splitter =  RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
-        chunks = splitter.split_text(corpus)
+        splitter =  CharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
+        chunks = splitter.split_documents(corpus)
     
         embeddings = OpenAIEmbeddings()
         docsearch = Chroma.from_documents(chunks, embeddings)
