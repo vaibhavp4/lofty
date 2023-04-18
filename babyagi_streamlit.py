@@ -295,29 +295,29 @@ def main():
 
 
     if button:
-        try:
-            vectors = make_vectors(user_file)
-            #add a delay of 10 seconds
-            time.sleep(10)    
-            chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
-            objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")
-            print("objective")
-            first_task = "Summarise key insights from the file"
-            embedding_model = OpenAIEmbeddings()
-            vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
-            "print vector store built"
+        #try:
+        vectors = make_vectors(user_file)
+        #add a delay of 10 seconds
+        time.sleep(10)    
+        chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
+        objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")
+        print("objective")
+        first_task = "Summarise key insights from the file"
+        embedding_model = OpenAIEmbeddings()
+        vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
+        "print vector store built"
 
-            baby_agi = BabyAGI.from_llm_and_objectives(
-                vectors=vectors,
-                llm=OpenAI(openai_api_key=openai_api_key),
-                vectorstore=vectorstore,
-                objective=objective,
-                first_task=first_task,
-                verbose=False
-            )
-            baby_agi.run(max_iterations=max_iterations)
-        except Exception as e:
-            st.error(e)
+        baby_agi = BabyAGI.from_llm_and_objectives(
+            vectors=vectors,
+            llm=OpenAI(openai_api_key=openai_api_key),
+            vectorstore=vectorstore,
+            objective=objective,
+            first_task=first_task,
+            verbose=False
+        )
+        baby_agi.run(max_iterations=max_iterations)
+        #except Exception as e:
+            #st.error(e)
 
 
 if __name__ == "__main__":
