@@ -106,6 +106,7 @@ Pygments
 pympler
 pyrsistent
 python-dateutil
+python-docx
 python-dotenv
 python-json-logger
 pytz-deprecation-shim
