@@ -301,9 +301,11 @@ def main():
             time.sleep(10)    
             chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
             objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")["output_text"]
+            print("objective")
             first_task = "Summarise key insights from the file"
             embedding_model = OpenAIEmbeddings()
             vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
+            "print vector store built"
 
             baby_agi = BabyAGI.from_llm_and_objectives(
                 vectors=vectors,
