@@ -294,6 +294,7 @@ def main():
 
     if button:
         #try:
+        os.environ["OPENAI_API_KEY"] = openai_api_key
         vectors = make_vectors(user_file)
         qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
         objective = qa.run("Summarise the file in one sentence")
