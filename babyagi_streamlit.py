@@ -300,7 +300,7 @@ def main():
             #add a delay of 10 seconds
             time.sleep(10)    
             chain = load_qa_chain(OpenAI(temperature=0), chain_type="stuff")
-            objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")["output_text"]
+            objective = chain.run(input_documents = vectors, question = "Summarise the file in one sentence")
             print("objective")
             first_task = "Summarise key insights from the file"
             embedding_model = OpenAIEmbeddings()
