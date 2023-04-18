@@ -1,25 +1,27 @@
 from collections import deque
 from typing import Dict, List, Optional
 from langchain import LLMChain, OpenAI, PromptTemplate
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.llms import BaseLLM
 from langchain.vectorstores import FAISS
 from langchain.vectorstores.base import VectorStore
 from pydantic import BaseModel, Field
 import streamlit as st
+from docu_app import conversational_chat
 
 class TaskCreationChain(LLMChain):
     @classmethod
     def from_llm(cls, llm: BaseLLM, objective: str, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
         task_creation_template = (
-            "You are an task creation AI that uses the result of an execution agent"
-            " to create new tasks with the following objective: {objective},"
-            " The last completed task has the result: {result}."
-            " This result was based on this task description: {task_description}."
-            " These are incomplete tasks: {incomplete_tasks}."
-            " Based on the result, create new tasks to be completed"
-            " by the AI system that do not overlap with incomplete tasks."
+            "You are a research assistant AI that investigates a file rigourously"
+            " by understandong the results of a summarisation agent"
+            " to identify new questions. You are studing a file about this topic: {objective},"
+            " The last question had the following answer: {result}."
+            " This result was based on this question: {task_description}."
+            " These are pending questions that are to be processed: {incomplete_tasks}."
+            " Based on the result, ask new questions to be investigated"
+            " by the AI system that do not overlap with pending questions."
             " Return the tasks as an array."
         )
         prompt = PromptTemplate(
@@ -44,8 +46,8 @@ class TaskPrioritizationChain(LLMChain):
     def from_llm(cls, llm: BaseLLM, objective: str, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
         task_prioritization_template = (
-            "You are an task prioritization AI tasked with cleaning the formatting of and reprioritizing"
-            " the following tasks: {task_names}."
+            "You are a prioritization AI tasked with cleaning the formatting of and reprioritizing"
+            " the following questions: {task_names}."
             " Consider the ultimate objective of your team: {objective}."
             " Do not remove any tasks. Return the result as a numbered list, like:"
             " #. First task"
@@ -86,9 +88,10 @@ class ExecutionChain(LLMChain):
     def from_llm(cls, llm: BaseLLM, vectorstore: VectorStore, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
         execution_template = (
-            "You are an AI who performs one task based on the following objective: {objective}."
-            " Take into account these previously completed tasks: {context}."
-            " Your task: {task}."
+            "You are an AI who generates new insights based on the context"
+            " Take into account these previously generated insights, do not repeat them: {context}."
+            " Question you are investigating: {task}."
+            "Context: {new_information}."
             " Response:"
         )
         prompt = PromptTemplate(
@@ -105,10 +108,10 @@ class ExecutionChain(LLMChain):
         sorted_results, _ = zip(*sorted(results, key=lambda x: x[1], reverse=True))
         return [str(item.metadata['task']) for item in sorted_results]
     
-    def execute_task(self, objective: str, task: str, k: int = 5) -> str:
+    def execute_task(self, objective: str, task: str,  new_information = new_information, k: int = 5) -> str:
         """Execute a task."""
         context = self._get_top_tasks(query=objective, k=k)
-        return self.run(objective=objective, context=context, task=task)
+        return self.run(objective=objective, context=context, task=task, new_information=new_information)
 
 
 class Message:
@@ -117,7 +120,7 @@ class Message:
 
     def __init__(self, label: str):
         message_area, icon_area = st.columns([10, 1])
-        icon_area.image(self.ai_icon, caption="BabyAGI")
+        icon_area.image(self.ai_icon, caption="BabyAGI for understanding a file")
 
         # Expander
         self.exp = message_area.expander(label=label, expanded=True)
@@ -146,27 +149,27 @@ class BabyAGI(BaseModel):
         self.task_list.append(task)
 
     def print_task_list(self):
-        with Message(label="Task List") as m:
-            m.write("### Task List")
+        with Message(label="Questions List") as m:
+            m.write("### Question List")
             for t in self.task_list:
                 m.write("- " + str(t["task_id"]) + ": " + t["task_name"])
                 m.write("")
 
     def print_next_task(self, task: Dict):
-        with Message(label="Next Task") as m:
-            m.write("### Next Task")
+        with Message(label="Next Question") as m:
+            m.write("### Next Question")
             m.write("- " + str(task["task_id"]) + ": " + task["task_name"])
             m.write("")
 
     def print_task_result(self, result: str):
-        with Message(label="Task Result") as m:
-            m.write("### Task Result")
+        with Message(label="New Insight") as m:
+            m.write("### New Insight")
             m.write(result)
             m.write("")
 
     def print_task_ending(self):
-        with Message(label="Task Ending") as m:
-            m.write("### Task Ending")
+        with Message(label="Research Ending") as m:
+            m.write("### Research Ending")
             m.write("")
 
 
@@ -182,8 +185,9 @@ class BabyAGI(BaseModel):
                 self.print_next_task(task)
 
                 # Step 2: Execute the task
+                new_information = conversational_chat(f"What does the file say about: {task['task_name']}")
                 result = self.execution_chain.execute_task(
-                    self.objective, task["task_name"]
+                    self.objective, task["task_name"], new_information=new_information
                 )
                 this_task_id = int(task["task_id"])
                 self.print_task_result(result)
@@ -244,20 +248,21 @@ class BabyAGI(BaseModel):
 def main():
     st.set_page_config(
         initial_sidebar_state="expanded",
-        page_title="BabyAGI Streamlit",
+        page_title="BabyAGI x FileQnA",
         layout="centered",
     )
 
     with st.sidebar:
         openai_api_key = st.text_input('Your OpenAI API KEY', type="password")
 
-    st.title("BabyAGI Streamlit")
-    objective = st.text_input("Input Ultimate goal", "Solve world hunger")
-    first_task = st.text_input("Input Where to start", "Develop a task list")
+    st.title("BabyAGI x FileQnA")
+    upload = st.file_uploader("Upload a file", type=["txt", "pdf","docx"])
+    objective = conversational_chat(query = "Summarise the file in one sentence", uploaded_files=upload)
+    first_task = "Summarise key insights from the file"
     max_iterations = st.number_input("Max iterations", value=3, min_value=1, step=1)
     button = st.button("Run")
 
-    embedding_model = HuggingFaceEmbeddings()
+    embedding_model = OpenAIEmbeddings()
     vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
 
     if button:
@@ -267,7 +272,8 @@ def main():
                 vectorstore=vectorstore,
                 objective=objective,
                 first_task=first_task,
-                verbose=False
+                verbose=False,
+                file=upload
             )
             baby_agi.run(max_iterations=max_iterations)
         except Exception as e:
