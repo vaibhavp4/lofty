@@ -32,7 +32,7 @@ def make_vectors(uploaded_file):
         chunks = splitter.split_documents(corpus)
     
         embeddings = OpenAIEmbeddings()
-        docsearch = Chroma.from_documents(chunks, embeddings)
+        docsearch = Chroma.from_texts(chunks, embeddings)
         time.sleep(5)
         return docsearch          
 
