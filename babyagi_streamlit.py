@@ -139,7 +139,7 @@ class ExecutionChain(LLMChain):
     def execute_task(self, vectors, objective: str, task: str, k: int = 5) -> str:
         """Execute a task."""
         qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
-        new_information = qa.run(task['task_name'])
+        new_information = qa.run(task)
         context = self._get_top_tasks(query=objective, k=k)
         return self.run(vectors=self.vectors, objective=objective, context=context, task=task, new_information=new_information)
 
