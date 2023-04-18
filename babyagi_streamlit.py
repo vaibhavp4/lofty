@@ -124,7 +124,7 @@ class ExecutionChain(LLMChain):
         )
         prompt = PromptTemplate(
             template=execution_template,
-            input_variables=["objective", "context", "task"],
+            input_variables=["context", "task","new_information"],
         )
         return cls(prompt=prompt, llm=llm, verbose=verbose, vectorstore=vectorstore, vectors=vectors)
     
