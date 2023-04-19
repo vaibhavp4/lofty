@@ -20,6 +20,6 @@ The provided code snippet offers a robust implementation of BabyAGI, as a resear
 Some use cases could include topic modelling or combining the agent with internet access, filling the missing piece of information from online sources.
 
 **Credits:**
-https://github.com/yoheinakajima/babyagi
-https://github.com/dory111111/babyagi-streamlit
-https://python.langchain.com/en/latest/
+- https://github.com/yoheinakajima/babyagi
+- https://github.com/dory111111/babyagi-streamlit
+- https://python.langchain.com/en/latest/
