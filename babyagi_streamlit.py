@@ -2,7 +2,6 @@ from collections import deque
 from typing import Dict, List, Optional, Any
 import pdfminer
 import pdfminer.high_level
-import pickle
 from pathlib import Path
 import os
 import io
@@ -285,36 +284,38 @@ def main():
 
     with st.sidebar:
         openai_api_key = st.text_input('Your OpenAI API KEY', type="password")
+        pinecone_api_key = st.text_input('Your Pinecone API KEY', type="password")
+        pinecone_environment = st.text_input('Your Pinecone Environment')
 
     st.title("BabyAGI x FileQnA")
     user_file = st.file_uploader("Upload a file", type=["txt", "pdf","docx"])
     max_iterations = st.number_input("Max iterations", value=4, min_value=1, step=1)
     button = st.button("Run")
-
+    
 
     if button:
-        #try:
-        os.environ["OPENAI_API_KEY"] = openai_api_key
-        vectors = make_vectors(user_file)
-        qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
-        objective = qa.run("Summarise the file in one sentence")
-        print("objective")
-        first_task = "Summarise key insights from the file"
-        embedding_model = OpenAIEmbeddings()
-        vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
-        "print vector store built"
-
-        baby_agi = BabyAGI.from_llm_and_objectives(
-            llm=OpenAI(openai_api_key=openai_api_key),
-            vectorstore=vectorstore,
-            objective=objective,
-            first_task=first_task,
-            vectors=vectors,
-            verbose=False
-        )
-        baby_agi.run(max_iterations=max_iterations)
-        #except Exception as e:
-            #st.error(e)
+        try:
+            os.environ["PINECONE_API_KEY"]=pinecone_api_key
+            os.environ["PINECONE_ENVIRONMENT"]=pinecone_environment
+            os.environ["OPENAI_API_KEY"] = openai_api_key
+            vectors = make_vectors(user_file)
+            qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
+            objective = qa.run("Summarise the file in one sentence")
+            first_task = "Summarise key insights from the file"
+            embedding_model = OpenAIEmbeddings()
+            vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
+        
+            baby_agi = BabyAGI.from_llm_and_objectives(
+                llm=OpenAI(openai_api_key=openai_api_key),
+                vectorstore=vectorstore,
+                objective=objective,
+                first_task=first_task,
+                vectors=vectors,
+                verbose=False
+            )
+            baby_agi.run(max_iterations=max_iterations)
+        except Exception as e:
+            st.error(e)
 
 
 if __name__ == "__main__":
