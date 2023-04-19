@@ -7,3 +7,4 @@ pydantic
 streamlit
 tiktoken
 chromadb
+faiss-cpu
