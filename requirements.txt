@@ -6,3 +6,4 @@ pdfminer.six
 pydantic
 streamlit
 tiktoken
+Chromadb
