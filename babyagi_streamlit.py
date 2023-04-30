@@ -261,7 +261,7 @@ def main():
     max_iterations = st.number_input("Max iterations", value=3, min_value=1, step=1)
     button = st.button("Run")
 
-    embedding_model = OpenAI()
+    embedding_model = OpenAIEmbeddings()
     vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
 
     if button:
