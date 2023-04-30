@@ -1,52 +1,27 @@
 from collections import deque
-from typing import Dict, List, Optional, Any
-import pdfminer
-import pdfminer.high_level
-from pathlib import Path
-import os
-import io
-from docx import Document
+from typing import Dict, List, Optional
 from langchain import LLMChain, OpenAI, PromptTemplate
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.llms import BaseLLM
 from langchain.vectorstores import FAISS
 from langchain.vectorstores.base import VectorStore
 from pydantic import BaseModel, Field
 import streamlit as st
-import time
-
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.text_splitter import CharacterTextSplitter
-from langchain.llms import OpenAI
-from langchain.chains import RetrievalQA
-
-def make_vectors(uploaded_file):
-    filename = uploaded_file.name
-    if not os.path.isfile(filename + ".pkl"): 
-        corpus = pdfminer.high_level.extract_text(io.BytesIO(uploaded_file.read())) if uploaded_file.name.split(".")[-1].lower() == "pdf" else "\n".join([para.text.strip() for para in Document(io.BytesIO(uploaded_file.read())).paragraphs]) if uploaded_file.name.split(".")[-1].lower() in ["docx", "doc"] else uploaded_file.read().decode('utf-8') if uploaded_file.name.split(".")[-1].lower() == "txt" else ""
-        splitter =  CharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
-        chunks = splitter.split_text(corpus)
-    
-        embeddings = OpenAIEmbeddings()
-        docsearch = Chroma.from_texts(chunks, embeddings)
-        time.sleep(5)
-        return docsearch          
 
 class TaskCreationChain(LLMChain):
     @classmethod
     def from_llm(cls, llm: BaseLLM, objective: str, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
         task_creation_template = (
-            "You are a research assistant AI that investigates a file rigourously"
-            " by asking new questions based on the results of a summarisation agent"
-            " The file you are studying: {objective},"
-            " The last question had the following answer: {result}."
-            " This result was based on this question: {task_description}."
-            " These are pending questions that are to be processed: {incomplete_tasks}."
-            " Based on the result, ask two new research questions to be investigated"
-            " that do not overlap with pending questions and neither are a subset of previous questions."
-            " Return the questions as an array."
+            "You are a marketing task creation AI that uses the result of an execution agent"
+            " to create new tasks with the following objective: {objective},"
+            " The last completed task has the result: {result}."
+            " This result was based on this task description: {task_description}."
+            " Apply the mind of a marketer with adequate framework to identify the next step"
+            " These are incomplete tasks: {incomplete_tasks}."
+            " Based on the result, create at max 3 new tasks to be completed"
+            " by the team. New tasks should not overlap with incomplete tasks."
+            " Return the tasks as an array."
         )
         prompt = PromptTemplate(
             template=task_creation_template,
@@ -70,9 +45,9 @@ class TaskPrioritizationChain(LLMChain):
     def from_llm(cls, llm: BaseLLM, objective: str, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
         task_prioritization_template = (
-            "You are a prioritization AI tasked with cleaning the formatting of and reprioritizing"
-            " the following questions: {task_names}."
-            " You are studying a file about: {objective}."
+            "You are an task prioritization AI tasked with cleaning the formatting of and reprioritizing"
+            " the following tasks: {task_names}."
+            " Consider the ultimate objective of your team: {objective}."
             " Do not remove any tasks. Return the result as a numbered list, like:"
             " #. First task"
             " #. Second task"
@@ -107,23 +82,24 @@ class ExecutionChain(LLMChain):
     """Chain to execute tasks."""
     
     vectorstore: VectorStore = Field(init=False)
-    vectors: Optional[Any] = Field(None)
 
     @classmethod
-    def from_llm(cls, llm: BaseLLM, vectorstore: VectorStore, vectors: Any, verbose: bool = True) -> LLMChain:
+    def from_llm(cls, llm: BaseLLM, vectorstore: VectorStore, verbose: bool = True) -> LLMChain:
         """Get the response parser."""
         execution_template = (
-            "You are an AI who generates new insights based on the context"
-            " Take into account these previously generated insights, do not repeat them: {context}."
-            " Question you are investigating: {task}."
-            " Context: {new_information}."
+            "You are an AI who performs one task based on the following objective: {objective}."
+            " Take into account these previously completed tasks: {context}."
+            "You take inspiration from the history of the brand, relevant artists," 
+            " and marketing case studies of the relevant field to creatively execute the task."
+            "Your creativity is lofty and authentic"
+            " Your task: {task}."
             " Response:"
         )
         prompt = PromptTemplate(
             template=execution_template,
-            input_variables=["context", "task","new_information"],
+            input_variables=["objective", "context", "task"],
         )
-        return cls(prompt=prompt, llm=llm, verbose=verbose, vectorstore=vectorstore, vectors=vectors)
+        return cls(prompt=prompt, llm=llm, verbose=verbose, vectorstore=vectorstore)
     
     def _get_top_tasks(self, query: str, k: int) -> List[str]:
         """Get the top k tasks based on the query."""
@@ -133,12 +109,10 @@ class ExecutionChain(LLMChain):
         sorted_results, _ = zip(*sorted(results, key=lambda x: x[1], reverse=True))
         return [str(item.metadata['task']) for item in sorted_results]
     
-    def execute_task(self, vectors, objective: str, task: str, k: int = 5) -> str:
+    def execute_task(self, objective: str, task: str, k: int = 5) -> str:
         """Execute a task."""
-        qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
-        new_information = qa.run(task)
         context = self._get_top_tasks(query=objective, k=k)
-        return self.run(vectors=self.vectors, objective=objective, context=context, task=task, new_information=new_information)
+        return self.run(objective=objective, context=context, task=task)
 
 
 class Message:
@@ -147,7 +121,7 @@ class Message:
 
     def __init__(self, label: str):
         message_area, icon_area = st.columns([10, 1])
-        icon_area.image(self.ai_icon, caption="BabyAGI for understanding a file")
+        icon_area.image(self.ai_icon, caption="BabyAGI")
 
         # Expander
         self.exp = message_area.expander(label=label, expanded=True)
@@ -164,39 +138,39 @@ class Message:
 
 class BabyAGI(BaseModel):
     """Controller model for the BabyAGI agent."""
+
     objective: str = Field(alias="objective")
     task_list: deque = Field(default_factory=deque)
     task_creation_chain: TaskCreationChain = Field(...)
     task_prioritization_chain: TaskPrioritizationChain = Field(...)
     execution_chain: ExecutionChain = Field(...)
     task_id_counter: int = Field(1)
-    vectors: Optional[Any] = Field(None)
 
     def add_task(self, task: Dict):
         self.task_list.append(task)
 
     def print_task_list(self):
-        with Message(label="Questions List") as m:
-            m.write("### Question List")
+        with Message(label="Task List") as m:
+            m.write("### Task List")
             for t in self.task_list:
                 m.write("- " + str(t["task_id"]) + ": " + t["task_name"])
                 m.write("")
 
     def print_next_task(self, task: Dict):
-        with Message(label="Next Question") as m:
-            m.write("### Next Question")
+        with Message(label="Next Task") as m:
+            m.write("### Next Task")
             m.write("- " + str(task["task_id"]) + ": " + task["task_name"])
             m.write("")
 
     def print_task_result(self, result: str):
-        with Message(label="New Insight") as m:
-            m.write("### New Insight")
+        with Message(label="Task Result") as m:
+            m.write("### Task Result")
             m.write(result)
             m.write("")
 
     def print_task_ending(self):
-        with Message(label="Research Ending") as m:
-            m.write("### Research Ending")
+        with Message(label="Task Ending") as m:
+            m.write("### Task Ending")
             m.write("")
 
 
@@ -213,7 +187,7 @@ class BabyAGI(BaseModel):
 
                 # Step 2: Execute the task
                 result = self.execution_chain.execute_task(
-                    self.vectors, self.objective, task["task_name"]
+                    self.objective, task["task_name"]
                 )
                 this_task_id = int(task["task_id"])
                 self.print_task_result(result)
@@ -251,7 +225,6 @@ class BabyAGI(BaseModel):
         vectorstore: VectorStore,
         objective: str,
         first_task: str,
-        vectors: Any,
         verbose: bool = False,
     ) -> "BabyAGI":
         """Initialize the BabyAGI Controller."""
@@ -261,13 +234,12 @@ class BabyAGI(BaseModel):
         task_prioritization_chain = TaskPrioritizationChain.from_llm(
             llm, objective, verbose=verbose
         )
-        execution_chain = ExecutionChain.from_llm(llm, vectorstore, vectors, verbose=verbose)
+        execution_chain = ExecutionChain.from_llm(llm, vectorstore, verbose=verbose)
         controller =  cls(
             objective=objective,
             task_creation_chain=task_creation_chain,
             task_prioritization_chain=task_prioritization_chain,
             execution_chain=execution_chain,
-            vectors=vectors,
         )
         controller.add_task({"task_id": 1, "task_name": first_task})
         return controller
@@ -276,34 +248,29 @@ class BabyAGI(BaseModel):
 def main():
     st.set_page_config(
         initial_sidebar_state="expanded",
-        page_title="BabyAGI x FileQnA",
+        page_title="BabyAGI Streamlit",
         layout="centered",
     )
 
     with st.sidebar:
         openai_api_key = st.text_input('Your OpenAI API KEY', type="password")
-    st.title("BabyAGI x FileQnA")
-    user_file = st.file_uploader("Upload a file", type=["txt", "pdf","docx"])
-    max_iterations = st.number_input("Max iterations", value=4, min_value=1, step=1)
+
+    st.title("Lofty - your team of agents for creative campaigns")
+    objective = st.text_input("Input Ultimate goal")
+    first_task = st.text_input("Input Where to start", "Develop a task list")
+    max_iterations = st.number_input("Max iterations", value=3, min_value=1, step=1)
     button = st.button("Run")
-    
+
+    embedding_model = OpenAI()
+    vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
 
     if button:
         try:
-            os.environ["OPENAI_API_KEY"] = openai_api_key
-            vectors = make_vectors(user_file)
-            qa = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever())
-            objective = qa.run("Summarise the file in one sentence")
-            first_task = "Summarise key insights from the file"
-            embedding_model = OpenAIEmbeddings()
-            vectorstore = FAISS.from_texts(["_"], embedding_model, metadatas=[{"task":first_task}])
-        
             baby_agi = BabyAGI.from_llm_and_objectives(
                 llm=OpenAI(openai_api_key=openai_api_key),
                 vectorstore=vectorstore,
                 objective=objective,
                 first_task=first_task,
-                vectors=vectors,
                 verbose=False
             )
             baby_agi.run(max_iterations=max_iterations)
